@@ -1,0 +1,13 @@
+[project]
+name = "datasette-llm"
+version = "0.1"
+dependencies = [
+    "datasette",
+    "llm",
+]
+
+[project.entry-points.datasette]
+llm = "datasette_llm"
+
+[project.optional-dependencies]
+test = ["pytest"]
