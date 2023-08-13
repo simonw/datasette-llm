@@ -133,21 +133,4 @@ textarea {
     <li><a href="llm/{{ conversation.id }}">{{ conversation.name or "Untitled" }}</a> - <strong>{{ conversation.num_responses }}</strong> {{ conversation.model }} {{ conversation.start_datetime_utc }}</li>
 {% endfor %}
 </ul>
-<script>
-var text = "Lorem ipsum dolor sit amet consectetur, adipisicing elit. Distinctio similique quos ratione omnis impedit, est mollitia amet aspernatur inventore consectetur, autem dolorum at nemo! Voluptas modi eveniet culpa nobis id?";
-var words = text.split(" ");
-var container = document.getElementById("animatedText");
-container.innerHTML = "";
-
-function addWord(index) {
-if (index < words.length) {
-    container.innerHTML += words[index] + " ";
-    setTimeout(function() {
-    addWord(index + 1);
-    }, 50);
-}
-}
-
-addWord(0);
-</script>
 {% endblock %}
