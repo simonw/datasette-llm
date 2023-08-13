@@ -28,13 +28,55 @@ def startup(datasette):
 
 @hookimpl
 def register_routes():
-    return [(r"^/-/llm$", llm_index)]
+    return [
+        (r"^/-/llm$", llm_index),
+        # Capture conversation_id
+        (r"^/-/llm/(?P<conversation_id>[0-9a-z]+)$", llm_conversation),
+        (r"^/-/llm/start$", llm_start),
+    ]
+
+
+async def llm_conversation(request, datasette):
+    conversation_id = request.url_vars["conversation_id"]
+    return Response.text("Conversation {}".format(conversation_id))
 
 
 async def llm_index(request, datasette):
-    return Response.html(await datasette.render_template("llm.html", {
-        "models": [{
-            "model_id": ma.model.model_id,
-            "name": str(ma.model)
-        } for ma in llm.get_models_with_aliases()]
-    }))
+    return Response.html(
+        await datasette.render_template(
+            "llm.html",
+            {
+                "models": [
+                    {"model_id": ma.model.model_id, "name": str(ma.model)}
+                    for ma in llm.get_models_with_aliases()
+                ],
+                "start_path": datasette.urls.path("/-/llm/start"),
+            },
+            request=request,
+        )
+    )
+
+
+async def llm_start(request, datasette):
+    if request.method != "POST":
+        return Response.redirect(datasette.urls.path("/-/llm"))
+    form_data = await request.post_vars()
+    print(form_data)
+    try:
+        model_id = form_data["model_id"]
+        prompt = form_data["prompt"]
+        system = form_data.get("system")
+    except KeyError:
+        datasette.add_message(
+            request, "Invalid start to the conversation", type=datasette.ERROR
+        )
+        return Response.redirect(datasette.urls.path("/-/llm"))
+    try:
+        model = llm.get_model(model_id)
+    except llm.UnknownModelError:
+        datasette.add_message(request, "Unknown model", type=datasette.ERROR)
+        return Response.redirect(datasette.urls.path("/-/llm"))
+    # Create the conversation and redirect the user
+    conversation = model.conversation()
+    # TODO: persist the prompt and system so they can start running on the next page
+    return Response.redirect(datasette.urls.path("/-/llm/{}".format(conversation.id)))
