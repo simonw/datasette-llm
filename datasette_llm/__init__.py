@@ -32,4 +32,9 @@ def register_routes():
 
 
 async def llm_index(request, datasette):
-    return Response.html(await datasette.render_template("llm.html"))
+    return Response.html(await datasette.render_template("llm.html", {
+        "models": [{
+            "model_id": ma.model.model_id,
+            "name": str(ma.model)
+        } for ma in llm.get_models_with_aliases()]
+    }))

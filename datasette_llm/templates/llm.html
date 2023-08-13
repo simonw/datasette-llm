@@ -2,10 +2,9 @@
     <div class="select-model">
     <label for="select_model">Model</label>
     <select id="select_model">
-        <option value="gpt-3.5-turbo">OpenAI: gpt-3.5-turbo</option>
-        <option value="gpt-3.5-turbo-16k">OpenAI: gpt-3.5-turbo-16k</option>
-        <option value="gpt-4">OpenAI: gpt-4</option>
-        <option value="gpt-4-32k">OpenAI: gpt-4-32k</option>
+        {% for model in models %}
+            <option value="{{ model.model_id }}">{{ model.name }}</option>
+        {% endfor %}
     </select>
     </div>
   <div class="chat-bubble one">
