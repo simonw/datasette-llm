@@ -4,18 +4,23 @@
 <script src=" https://cdn.jsdelivr.net/npm/dompurify@3.0.5/dist/purify.min.js "></script>
 <script src=" https://cdn.jsdelivr.net/npm/marked@4.3.0/lib/marked.umd.min.js "></script>
 <h1>{{ conversation_title }}</h1>
-<p>Model: <strong>{{ model_id }}</strong></p>
+<p>Model: <strong>{{ model_id }}</strong> {% if start_datetime_utc %}- {{ start_datetime_utc }}{% endif %}</p>
 <div class="chat-container">
 {% if responses %}
+{% set previous_system = None %}
 {% for response in responses %}
   <div class="chat-bubble one">
     <div>
-        <p>{{ response.prompt }}</p>
+      {% if response.system and response.system != previous_system %}
+        <p style="font-size: 0.8em"><strong>System:</strong> <code>{{ response.system }}</code></p>
+        {% set previous_system = response.system %}
+      {% endif %}
+      <p class="prompt-prompt">{{ response.prompt }}</p>
     </div>
     <img class="avatar" src="/-/static-plugins/datasette-llm/peli-avatar.png" alt="Person A Avatar">
   </div>
   <div class="chat-bubble two">
-    <div class="prompt-response">{{ response.response }}</div>
+    <div class="prompt-response" data-markdown="{{ response.response }}">{{ response.response }}</div>
     <img class="avatar" src="/-/static-plugins/datasette-llm/peli-avatar.png" alt="Person B Avatar">
   </div>
 {% endfor %}
@@ -33,7 +38,13 @@
 .chat-container form {
     margin: 0;
 }
-.prompt-response, .prompt-response pre {
+.prompt-response {
+  white-space: pre-wrap;
+}
+.chat-container img {
+  max-width: 100%;
+}
+.chat-container pre {
   white-space: pre-wrap;
 }
 .contains-textarea {
@@ -114,10 +125,12 @@ textarea {
 <script>
 // Render markdown
 document.addEventListener("DOMContentLoaded", function () {
-  var responses = document.querySelectorAll(".prompt-response");
-  responses.forEach(function (response) {
-    response.innerHTML = DOMPurify.sanitize(marked.parse(response.innerText, { headerIds: false, mangle: false }));
-    response.style.whiteSpace = "normal";
+  var els = document.querySelectorAll("[data-markdown]");
+  els.forEach(function (el) {
+    el.innerHTML = DOMPurify.sanitize(
+      marked.parse(el.dataset.markdown, {headerIds: false, mangle: false})
+    );
+    el.style.whiteSpace = "normal";
   });
 });
 </script>

@@ -77,6 +77,9 @@ async def llm_conversation(request, datasette):
                 "conversation_id": conversation_id,
                 "conversation_title": conversation["name"] or "Untitled conversation",
                 "responses": responses,
+                "start_datetime_utc": responses[0]["datetime_utc"]
+                if responses
+                else None,
             },
             request=request,
         )
@@ -96,7 +99,7 @@ async def llm_index(request, datasette):
         from conversations
         left join responses on conversations.id = responses.conversation_id
         group by conversations.id, conversations.name, conversations.model
-        order by conversations.id desc limit 100;
+        order by conversations.id desc limit 200;
         """
     )
     return Response.html(
