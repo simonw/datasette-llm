@@ -1,4 +1,4 @@
-from datasette import hookimpl
+from datasette import hookimpl, Response
 from datasette.database import Database
 import llm
 from llm.cli import cli as llm_cli
@@ -24,3 +24,12 @@ def startup(datasette):
     db_path = pathlib.Path(db_path)
     if db_path.exists() and not has_llm_db:
         datasette.add_database(Database(datasette, path=str(db_path)), name="llm")
+
+
+@hookimpl
+def register_routes():
+    return [(r"^/-/llm$", llm_index)]
+
+
+async def llm_index(request, datasette):
+    return Response.html(await datasette.render_template("llm.html"))

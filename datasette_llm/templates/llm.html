@@ -1,0 +1,141 @@
+<div class="chat-container">
+    <div class="select-model">
+    <label for="select_model">Model</label>
+    <select id="select_model">
+        <option value="gpt-3.5-turbo">OpenAI: gpt-3.5-turbo</option>
+        <option value="gpt-3.5-turbo-16k">OpenAI: gpt-3.5-turbo-16k</option>
+        <option value="gpt-4">OpenAI: gpt-4</option>
+        <option value="gpt-4-32k">OpenAI: gpt-4-32k</option>
+    </select>
+    </div>
+  <div class="chat-bubble one">
+    <div>
+        <p>Hello, how are you?</p>
+    </div>
+    <img class="avatar" src="/-/static-plugins/datasette-llm/pelican.jpg" alt="Person A Avatar">
+  </div>
+  <div class="chat-bubble two">
+    <div>
+        <p>I'm good, thanks! And you?</p>
+    </div>
+    <img class="avatar" src="/-/static-plugins/datasette-llm/pelican-flip.jpg" alt="Person B Avatar">
+  </div>
+  <div class="chat-bubble one">
+    <div>
+        <p>Lorem ipsum dolor sit amet consectetur, adipisicing elit. Distinctio similique quos ratione omnis impedit, est mollitia amet</p><p>aspernatur inventore consectetur, autem dolorum at nemo! Voluptas modi eveniet culpa nobis id?
+    </div>
+    <img class="avatar" src="/-/static-plugins/datasette-llm/pelican.jpg" alt="Person A Avatar">
+  </div>
+  <div class="chat-bubble two">
+    <div id="animatedText">
+        <p>Lorem ipsum dolor sit amet consectetur, adipisicing elit. Distinctio similique quos ratione omnis impedit, est mollitia amet</p><p>aspernatur inventore consectetur, autem dolorum at nemo! Voluptas modi eveniet culpa nobis id?
+    </div>
+    <img class="avatar" src="/-/static-plugins/datasette-llm/pelican-flip.jpg" alt="Person B Avatar">
+  </div>
+  <div class="chat-bubble one">
+    <div class="contains-textarea">
+        <form action="">
+        <textarea>Type here</textarea>
+        <p class="submit"><input type="submit" value="Send"></p>
+        </form>
+    </div>
+    <img class="avatar" src="/-/static-plugins/datasette-llm/pelican.jpg" alt="Person A Avatar">
+  </div>
+
+</div>
+<style>
+.chat-container form {
+    margin: 0;
+}
+.contains-textarea {
+    /* flex box should take all available width */
+    flex: 1;
+}
+p.submit {
+    text-align: right;
+    padding-top: 5px;
+}
+p.submit input {
+    border: 2px solid #7572db;
+    padding: 3 10px;
+    background-color: #b9b7f2;
+}
+textarea {
+    width: 100%;
+    padding: 5px;
+    min-height: 60px;
+}
+.chat-container {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    font-family: Helvetica, sans-serif;
+    line-height: 1.35;
+    color: rgba(0, 0, 0, 0.8);
+    max-width: 600px;
+
+}
+
+.chat-bubble {
+    border-radius: 10px;
+    padding: 10px;
+    margin: 10px;
+    width: 85%;
+    border: 1px solid #ccc;
+    background-color: #e6e5ff;
+
+    display: flex;
+    align-items: start;
+}
+.chat-bubble.one {
+    border-color: #b9b7f2;
+}
+.chat-bubble.two {
+    /* darker darker green */
+    border-color: #98d798;
+}
+.chat-bubble img.avatar {
+    width: 50px;
+}
+.chat-bubble.one img.avatar {
+    order: -1;
+    margin-right: 10px;
+}
+
+.chat-bubble.two {
+    background-color: #ccffcc;
+    align-self: flex-end;
+    justify-content: space-between;
+}
+
+.chat-bubble.two img.avatar {
+    order: 1;
+    margin-left: 10px;
+}
+
+.chat-bubble p {
+    margin-top: 0;
+}
+.chat-bubble p:last-of-type {
+    margin-bottom: 0;
+}
+
+</style>
+
+<script>
+var text = "Lorem ipsum dolor sit amet consectetur, adipisicing elit. Distinctio similique quos ratione omnis impedit, est mollitia amet aspernatur inventore consectetur, autem dolorum at nemo! Voluptas modi eveniet culpa nobis id?";
+var words = text.split(" ");
+var container = document.getElementById("animatedText");
+container.innerHTML = "";
+
+function addWord(index) {
+if (index < words.length) {
+    container.innerHTML += words[index] + " ";
+    setTimeout(function() {
+    addWord(index + 1);
+    }, 50);
+}
+}
+
+addWord(0);
+</script>

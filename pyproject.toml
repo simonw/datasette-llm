@@ -11,3 +11,9 @@ llm = "datasette_llm"
 
 [project.optional-dependencies]
 test = ["pytest"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+
+[tool.setuptools.package-data]
+datasette_llm = ["static/*", "templates/*"]
