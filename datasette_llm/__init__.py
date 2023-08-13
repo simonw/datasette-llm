@@ -1,5 +1,6 @@
-from datasette import hookimpl, Response
+from datasette import hookimpl, Response, NotFound
 from datasette.database import Database
+from datasette.utils import sqlite3
 import datetime
 import llm
 from llm.cli import cli as llm_cli
@@ -40,10 +41,64 @@ def register_routes():
 
 async def llm_conversation(request, datasette):
     conversation_id = request.url_vars["conversation_id"]
-    return Response.text("Conversation {}".format(conversation_id))
+    # It may have just been initiated but not yet started:
+    try:
+        initiated = (
+            await datasette.get_database("llm").execute(
+                "select * from initiated where id = :id", {"id": conversation_id}
+            )
+        ).first()
+    except sqlite3.OperationalError:
+        # Table has not been created yet
+        initiated = None
+    # Or there may be a conversation with responses:
+    conversation = (
+        await datasette.get_database("llm").execute(
+            "select * from conversations where id = :id", {"id": conversation_id}
+        )
+    ).first()
+    responses = (
+        await datasette.get_database("llm").execute(
+            "select * from responses where conversation_id = :id",
+            {"id": conversation_id},
+        )
+    ).rows
+
+    if not initiated and not conversation and not responses:
+        raise NotFound("Conversation not found")
+
+    model_id = conversation["model"] if conversation else initiated["model"]
+
+    return Response.html(
+        await datasette.render_template(
+            "llm_conversation.html",
+            {
+                "model_id": model_id,
+                "conversation_id": conversation_id,
+                "conversation_title": conversation["name"] or "Untitled conversation",
+                "responses": responses,
+            },
+            request=request,
+        )
+    )
 
 
 async def llm_index(request, datasette):
+    db = datasette.get_database("llm")
+    previous_conversations = await db.execute(
+        """
+        select
+            conversations.id,
+            conversations.name,
+            conversations.model,
+            min(responses.datetime_utc) as start_datetime_utc,
+            count(responses.id) as num_responses
+        from conversations
+        left join responses on conversations.id = responses.conversation_id
+        group by conversations.id, conversations.name, conversations.model
+        order by conversations.id desc limit 100;
+        """
+    )
     return Response.html(
         await datasette.render_template(
             "llm.html",
@@ -53,6 +108,7 @@ async def llm_index(request, datasette):
                     for ma in llm.get_models_with_aliases()
                 ],
                 "start_path": datasette.urls.path("/-/llm/start"),
+                "previous_conversations": previous_conversations.rows,
             },
             request=request,
         )
@@ -85,7 +141,7 @@ async def llm_start(request, datasette):
         db["initiated"].insert(
             {
                 "id": conversation.id,
-                "model_id": model_id,
+                "model": model_id,
                 "prompt": prompt,
                 "system": system,
                 "actor_id": request.actor.get("id") if request.actor else None,

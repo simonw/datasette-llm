@@ -1,43 +1,25 @@
 {% extends "base.html" %}
-{% block title %}Datasette LLM{% endblock %}
+{% block title %}{{ conversation_title }}{% endblock %}
 {% block content %}
-<h1>Start a conversation</h1>
-<form action="{{ start_path }}" method="POST">
+<script src=" https://cdn.jsdelivr.net/npm/marked@4.3.0/lib/marked.umd.min.js "></script>
+<h1>{{ conversation_title }}</h1>
+<p>Model: <strong>{{ model_id }}</strong></p>
 <div class="chat-container">
-    <input type="hidden" name="csrftoken" value="{{ csrftoken() }}">
-    <div class="select-model">
-    <label for="select_model">Model</label>
-    <select id="select_model" name="model_id">
-        {% for model in models %}
-            <option value="{{ model.model_id }}">{{ model.name }}</option>
-        {% endfor %}
-    </select>
-    </div>
-  <!-- <div class="chat-bubble one">
+{% if responses %}
+{% for response in responses %}
+  <div class="chat-bubble one">
     <div>
-        <p>Hello, how are you?</p>
+        <p>{{ response.prompt }}</p>
     </div>
     <img class="avatar" src="/-/static-plugins/datasette-llm/peli-avatar.png" alt="Person A Avatar">
   </div>
   <div class="chat-bubble two">
-    <div>
-        <p>I'm good, thanks! And you?</p>
-    </div>
+    <div class="prompt-response">{{ response.response }}</div>
     <img class="avatar" src="/-/static-plugins/datasette-llm/peli-avatar.png" alt="Person B Avatar">
   </div>
-  <div class="chat-bubble one">
-    <div>
-        <p>Lorem ipsum dolor sit amet consectetur, adipisicing elit. Distinctio similique quos ratione omnis impedit, est mollitia amet</p><p>aspernatur inventore consectetur, autem dolorum at nemo! Voluptas modi eveniet culpa nobis id?
-    </div>
-    <img class="avatar" src="/-/static-plugins/datasette-llm/peli-avatar.png" alt="Person A Avatar">
-  </div>
-  <div class="chat-bubble two">
-    <div id="animatedText">
-        <p>Lorem ipsum dolor sit amet consectetur, adipisicing elit. Distinctio similique quos ratione omnis impedit, est mollitia amet</p><p>aspernatur inventore consectetur, autem dolorum at nemo! Voluptas modi eveniet culpa nobis id?
-    </div>
-    <img class="avatar" src="/-/static-plugins/datasette-llm/peli-avatar.png" alt="Person B Avatar">
-  </div> -->
-  <div class="chat-bubble one">
+{% endfor %}
+{% endif %}
+<div class="chat-bubble one">
     <div class="contains-textarea">
         <textarea name="prompt">Type here</textarea>
         <p class="submit"><input type="submit" value="Send"></p>
@@ -49,6 +31,9 @@
 <style>
 .chat-container form {
     margin: 0;
+}
+.prompt-response, .prompt-response pre {
+  white-space: pre-wrap;
 }
 .contains-textarea {
     /* flex box should take all available width */
@@ -125,13 +110,17 @@ textarea {
 
 </style>
 
-<h2>Previous conversations</h2>
+<script>
+// Render markdown
+document.addEventListener("DOMContentLoaded", function () {
+  var responses = document.querySelectorAll(".prompt-response");
+  responses.forEach(function (response) {
+    response.innerHTML = marked.parse(response.innerText, { headerIds: false, mangle: false });
+    response.style.whiteSpace = "normal";
+  });
+});
+</script>
 
-<ul>
-{% for conversation in previous_conversations %}
-    <li><a href="llm/{{ conversation.id }}">{{ conversation.name or "Untitled" }}</a> - {{ conversation.model }} {{ conversation.start_datetime_utc }}</li>
-{% endfor %}
-</ul>
 <script>
 var text = "Lorem ipsum dolor sit amet consectetur, adipisicing elit. Distinctio similique quos ratione omnis impedit, est mollitia amet aspernatur inventore consectetur, autem dolorum at nemo! Voluptas modi eveniet culpa nobis id?";
 var words = text.split(" ");
