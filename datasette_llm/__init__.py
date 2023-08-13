@@ -79,15 +79,20 @@ async def llm_start(request, datasette):
         return Response.redirect(datasette.urls.path("/-/llm"))
     # Create the conversation and redirect the user
     conversation = model.conversation()
+
     def store(conn):
         db = SqliteUtilsDatabase(conn)
-        db["initiated"].insert({
-            "id": conversation.id,
-            "model_id": model_id,
-            "prompt": prompt,
-            "system": system,
-            "actor_id": request.actor.get("id") if request.actor else None,
-            "datetime_utc": datetime.datetime.utcnow().isoformat(),
-        }, pk="id")
+        db["initiated"].insert(
+            {
+                "id": conversation.id,
+                "model_id": model_id,
+                "prompt": prompt,
+                "system": system,
+                "actor_id": request.actor.get("id") if request.actor else None,
+                "datetime_utc": datetime.datetime.utcnow().isoformat(),
+            },
+            pk="id",
+        )
+
     await datasette.get_database("llm").execute_write_fn(store)
     return Response.redirect(datasette.urls.path("/-/llm/{}".format(conversation.id)))
