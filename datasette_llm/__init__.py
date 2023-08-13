@@ -75,7 +75,8 @@ async def llm_conversation(request, datasette):
             {
                 "model_id": model_id,
                 "conversation_id": conversation_id,
-                "conversation_title": conversation["name"] or "Untitled conversation",
+                "conversation_title": (conversation["name"] if conversation else None)
+                or "Untitled conversation",
                 "responses": responses,
                 "start_datetime_utc": responses[0]["datetime_utc"]
                 if responses
