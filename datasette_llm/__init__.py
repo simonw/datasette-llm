@@ -1,7 +1,10 @@
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from datasette import hookimpl, Response, NotFound
 from datasette.database import Database
 from datasette.utils import sqlite3
 import datetime
+import json
 import llm
 from llm.cli import cli as llm_cli
 import pathlib
@@ -35,8 +38,90 @@ def register_routes():
         (r"^/-/llm$", llm_index),
         # Capture conversation_id
         (r"^/-/llm/start$", llm_start),
+        (r"^/-/llm/ws/(?P<conversation_id>[0-9a-z]+)$", llm_conversation_ws),
         (r"^/-/llm/(?P<conversation_id>[0-9a-z]+)$", llm_conversation),
     ]
+
+
+async def llm_conversation_ws(request, scope, receive, send, datasette):
+    if scope["type"] != "websocket":
+        return Response.text("ws only", status=400)
+
+    conversation_id = request.url_vars["conversation_id"]
+    # Must have been initiated already
+    initiated = (
+        await datasette.get_database("llm").execute(
+            "select * from initiated where id = :id", {"id": conversation_id}
+        )
+    ).first()
+    if not initiated:
+        return Response.text("Conversation not yet initiated", status=404)
+
+    model_id = initiated["model"]
+    db = datasette.get_database("llm")
+
+    try:
+        model = llm.get_model(model_id)
+    except llm.UnknownModelError:
+        return Response.text("Unknown model", status=400)
+
+    if model.needs_key:
+        model.key = llm.get_key(None, model.needs_key, model.key_env_var)
+
+    first_prompt = None
+    # If this conversation has not yet been started, start it
+    has_messages = (
+        await db.execute(
+            "select 1 from responses where conversation_id = :id",
+            {"id": conversation_id},
+        )
+    ).rows
+    if not has_messages:
+        first_prompt = initiated["prompt"]
+
+    def run_in_thread(prompt, system=None):
+        response = model.prompt(prompt, system=system)
+        for chunk in response:
+            yield chunk
+        yield {"end": response}
+
+    async def execute_prompt(prompt, send):
+        async for item in async_wrap(run_in_thread, prompt)():
+            if "error" in item:
+                await send({"type": "websocket.send", "text": item["error"]})
+            else:
+                # It might be the 'end'
+                if isinstance(item["item"], dict) and "end" in item["item"]:
+                    # Log to the DB
+                    response = item["item"]["end"]
+                    await db.execute_write_fn(
+                        lambda conn: response.log_to_db(SqliteUtilsDatabase(conn)),
+                        block=False,
+                    )
+                else:
+                    # Send the message to the client
+                    await send({"type": "websocket.send", "text": item["item"]})
+        await send({"type": "websocket.send", "text": "\n\n"})
+
+    while True:
+        event = await receive()
+        if event["type"] == "websocket.connect":
+            await send({"type": "websocket.accept"})
+            if first_prompt:
+                await execute_prompt(first_prompt, send)
+            first_prompt = None
+        elif first_prompt or (event["type"] == "websocket.receive"):
+            if event["type"] == "websocket.receive":
+                message = event["text"]
+                decoded = json.loads(message)
+                prompt = decoded["prompt"]
+            else:
+                prompt = first_prompt
+                first_prompt = None
+            await execute_prompt(prompt, send)
+
+        elif event["type"] == "websocket.disconnect":
+            break
 
 
 async def llm_conversation(request, datasette):
@@ -63,7 +148,6 @@ async def llm_conversation(request, datasette):
             {"id": conversation_id},
         )
     ).rows
-
     if not initiated and not conversation and not responses:
         raise NotFound("Conversation not found")
 
@@ -81,6 +165,11 @@ async def llm_conversation(request, datasette):
                 "start_datetime_utc": responses[0]["datetime_utc"]
                 if responses
                 else None,
+                "ws_path": datasette.urls.path("/-/llm/ws/{}".format(conversation_id)),
+                # If we expect WebSocket to start streaming in results straight away:
+                "show_empty_response": bool(initiated),
+                "first_prompt": initiated["prompt"] if initiated else None,
+                "first_system_prompt": initiated["system"] if initiated else None,
             },
             request=request,
         )
@@ -156,3 +245,30 @@ async def llm_start(request, datasette):
 
     await datasette.get_database("llm").execute_write_fn(store)
     return Response.redirect(datasette.urls.path("/-/llm/{}".format(conversation.id)))
+
+
+END_SIGNAL = object()
+
+
+def async_wrap(generator_func, *args, **kwargs):
+    def next_item(gen):
+        try:
+            return next(gen)
+        except StopIteration:
+            return END_SIGNAL
+
+    async def async_generator():
+        loop = asyncio.get_running_loop()
+        generator = iter(generator_func(*args, **kwargs))
+        with ThreadPoolExecutor() as executor:
+            while True:
+                try:
+                    item = await loop.run_in_executor(executor, next_item, generator)
+                    if item is END_SIGNAL:
+                        break
+                    yield {"item": item}
+                except Exception as ex:
+                    yield {"error": str(ex)}
+                    break
+
+    return async_generator

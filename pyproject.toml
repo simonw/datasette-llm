@@ -4,6 +4,7 @@ version = "0.1"
 dependencies = [
     "datasette",
     "llm",
+    "websockets",
 ]
 
 [project.entry-points.datasette]

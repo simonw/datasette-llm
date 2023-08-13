@@ -25,6 +25,21 @@
   </div>
 {% endfor %}
 {% endif %}
+{% if show_empty_response %}
+  <div class="chat-bubble one">
+    <div>
+      {% if first_system_prompt %}
+        <p style="font-size: 0.8em"><strong>System:</strong> <code>{{ first_system_prompt }}</code></p>
+      {% endif %}
+      <p class="prompt-prompt">{{ first_prompt }}</p>
+    </div>
+    <img class="avatar" src="/-/static-plugins/datasette-llm/peli-avatar.png" alt="Person A Avatar">
+  </div>
+  <div class="chat-bubble two">
+    <div class="prompt-response active-response" data-markdown=""></div>
+    <img class="avatar" src="/-/static-plugins/datasette-llm/peli-avatar.png" alt="Person B Avatar">
+  </div>
+{% endif %}
 <div class="chat-bubble one">
     <div class="contains-textarea">
         <textarea name="prompt">Type here</textarea>
@@ -149,20 +164,14 @@ document.addEventListener("DOMContentLoaded", function () {
 </script>
 
 <script>
-var text = "Lorem ipsum dolor sit amet consectetur, adipisicing elit. Distinctio similique quos ratione omnis impedit, est mollitia amet aspernatur inventore consectetur, autem dolorum at nemo! Voluptas modi eveniet culpa nobis id?";
-var words = text.split(" ");
-var container = document.getElementById("animatedText");
-container.innerHTML = "";
-
-function addWord(index) {
-if (index < words.length) {
-    container.innerHTML += words[index] + " ";
-    setTimeout(function() {
-    addWord(index + 1);
-    }, 50);
-}
-}
-
-addWord(0);
+const ws = new WebSocket(`ws://${location.host}{{ ws_path }}`);
+ws.onmessage = function(event) {
+  // new token is event.data
+  const active = document.querySelector('.active-response');
+  active.dataset.markdown += event.data;
+  active.innerHTML = DOMPurify.sanitize(
+    marked.parse(active.dataset.markdown, {headerIds: false, mangle: false})
+  );
+};
 </script>
 {% endblock %}
