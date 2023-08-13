@@ -1,8 +1,10 @@
 from datasette import hookimpl, Response
 from datasette.database import Database
+import datetime
 import llm
 from llm.cli import cli as llm_cli
 import pathlib
+from sqlite_utils import Database as SqliteUtilsDatabase
 
 
 @hookimpl
@@ -31,8 +33,8 @@ def register_routes():
     return [
         (r"^/-/llm$", llm_index),
         # Capture conversation_id
-        (r"^/-/llm/(?P<conversation_id>[0-9a-z]+)$", llm_conversation),
         (r"^/-/llm/start$", llm_start),
+        (r"^/-/llm/(?P<conversation_id>[0-9a-z]+)$", llm_conversation),
     ]
 
 
@@ -61,7 +63,6 @@ async def llm_start(request, datasette):
     if request.method != "POST":
         return Response.redirect(datasette.urls.path("/-/llm"))
     form_data = await request.post_vars()
-    print(form_data)
     try:
         model_id = form_data["model_id"]
         prompt = form_data["prompt"]
@@ -78,5 +79,15 @@ async def llm_start(request, datasette):
         return Response.redirect(datasette.urls.path("/-/llm"))
     # Create the conversation and redirect the user
     conversation = model.conversation()
-    # TODO: persist the prompt and system so they can start running on the next page
+    def store(conn):
+        db = SqliteUtilsDatabase(conn)
+        db["initiated"].insert({
+            "id": conversation.id,
+            "model_id": model_id,
+            "prompt": prompt,
+            "system": system,
+            "actor_id": request.actor.get("id") if request.actor else None,
+            "datetime_utc": datetime.datetime.utcnow().isoformat(),
+        }, pk="id")
+    await datasette.get_database("llm").execute_write_fn(store)
     return Response.redirect(datasette.urls.path("/-/llm/{}".format(conversation.id)))
