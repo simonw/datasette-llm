@@ -38,8 +38,16 @@
 .chat-container form {
     margin: 0;
 }
-.prompt-response {
-  white-space: pre-wrap;
+.chat-container ul,
+.chat-container ol {
+  margin: 1em 0;
+  padding: 0 0 0 2em;
+}
+.chat-container ul {
+  list-style-type: disc;
+}
+.chat-container ol {
+  list-style-type: decimal;
 }
 .chat-container img {
   max-width: 100%;
@@ -51,6 +59,10 @@
     /* flex box should take all available width */
     flex: 1;
 }
+.prompt-response {
+  white-space: pre-wrap;
+}
+
 p.submit {
     text-align: right;
     padding-top: 5px;
