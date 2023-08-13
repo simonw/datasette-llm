@@ -129,7 +129,7 @@ textarea {
 
 <ul>
 {% for conversation in previous_conversations %}
-    <li><a href="llm/{{ conversation.id }}">{{ conversation.name or "Untitled" }}</a> - {{ conversation.model }} {{ conversation.start_datetime_utc }}</li>
+    <li><a href="llm/{{ conversation.id }}">{{ conversation.name or "Untitled" }}</a> - <strong>{{ conversation.num_responses }}</strong> {{ conversation.model }} {{ conversation.start_datetime_utc }}</li>
 {% endfor %}
 </ul>
 <script>
