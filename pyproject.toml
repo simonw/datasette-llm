@@ -3,7 +3,7 @@ name = "datasette-llm"
 version = "0.1"
 dependencies = [
     "datasette",
-    "llm",
+    "llm>=0.18a0",
     "websockets",
 ]
 

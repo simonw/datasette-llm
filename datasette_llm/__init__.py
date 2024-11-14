@@ -32,10 +32,46 @@ def startup(datasette):
         datasette.add_database(Database(datasette, path=str(db_path)), name="llm")
 
 
+async def llm_chat(request):
+    def _error(msg, status=400):
+        return Response.json({"error": msg}, status=status)
+
+    if request.method != "POST":
+        return _error("Must be a POST request", 405)
+    body = await request.post_body()
+    try:
+        data = json.loads(body)
+    except json.JSONDecodeError:
+        return _error("Invalid JSON")
+    model_id = data.get("model") or "gpt-4o-mini"
+    if not model_id or not isinstance(model_id, str):
+        return _error("Model not provided")
+    try:
+        model = llm.get_async_model(model_id)
+    except llm.UnknownModelError:
+        return _error("Unknown model")
+    prompt = data.get("prompt")
+    if not prompt or not isinstance(prompt, str):
+        return _error("Prompt not provided")
+    try:
+        response = await model.prompt(prompt)
+    except Exception as ex:
+        return _error(str(ex), 500)
+    return Response.json(
+        {
+            "prompt": prompt,
+            "response": await response.text(),
+            "details": response.response_json,
+        }
+    )
+
+
 @hookimpl
 def register_routes():
     return [
         (r"^/-/llm$", llm_index),
+        # API proxies
+        (r"^/-/llm/chat$", llm_chat),
         # Capture conversation_id
         (r"^/-/llm/start$", llm_start),
         (r"^/-/llm/ws/(?P<conversation_id>[0-9a-z]+)$", llm_conversation_ws),
@@ -162,9 +198,9 @@ async def llm_conversation(request, datasette):
                 "conversation_title": (conversation["name"] if conversation else None)
                 or "Untitled conversation",
                 "responses": responses,
-                "start_datetime_utc": responses[0]["datetime_utc"]
-                if responses
-                else None,
+                "start_datetime_utc": (
+                    responses[0]["datetime_utc"] if responses else None
+                ),
                 "ws_path": datasette.urls.path("/-/llm/ws/{}".format(conversation_id)),
                 # If we expect WebSocket to start streaming in results straight away:
                 "show_empty_response": bool(initiated),
