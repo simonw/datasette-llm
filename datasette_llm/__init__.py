@@ -1,6 +1,6 @@
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
-from datasette import hookimpl, Response, NotFound
+from datasette import hookimpl, Request, Response, NotFound
 from datasette.database import Database
 from datasette.utils import sqlite3
 import datetime
@@ -9,6 +9,7 @@ import llm
 from llm.cli import cli as llm_cli
 import pathlib
 from sqlite_utils import Database as SqliteUtilsDatabase
+from typing import Optional, Tuple
 
 
 @hookimpl
@@ -32,27 +33,38 @@ def startup(datasette):
         datasette.add_database(Database(datasette, path=str(db_path)), name="llm")
 
 
-async def llm_chat(request):
-    def _error(msg, status=400):
-        return Response.json({"error": msg}, status=status)
-
+async def validate(
+    request: Request,
+) -> Tuple[Optional[llm.AsyncModel], str, Optional[str], Optional[int]]:
+    # Returns model_id, prompt, optional error string, optional error status code
     if request.method != "POST":
-        return _error("Must be a POST request", 405)
-    body = await request.post_body()
+        return (None, "", "Must be a POST request", 405)
     try:
+        body = await request.post_body()
         data = json.loads(body)
     except json.JSONDecodeError:
-        return _error("Invalid JSON")
+        return (None, "", "Invalid JSON", 400)
     model_id = data.get("model") or "gpt-4o-mini"
     if not model_id or not isinstance(model_id, str):
-        return _error("Model not provided")
+        return (None, "", "Model not provided", 400)
     try:
         model = llm.get_async_model(model_id)
     except llm.UnknownModelError:
-        return _error("Unknown model")
+        return (None, "", "Unknown model", 400)
     prompt = data.get("prompt")
     if not prompt or not isinstance(prompt, str):
-        return _error("Prompt not provided")
+        return (None, "", "Prompt not provided", 400)
+    return (model, prompt, None, None)
+
+
+def _error(msg, status=400):
+    return Response.json({"error": msg}, status=status)
+
+
+async def llm_chat(request):
+    model, prompt, error, status = await validate(request)
+    if error:
+        return _error(error, status)
     try:
         response = await model.prompt(prompt)
     except Exception as ex:
@@ -66,12 +78,46 @@ async def llm_chat(request):
     )
 
 
+async def llm_stream(request, send):
+    model, prompt, error, status = await validate(request)
+    if error:
+        return _error(error, status)
+    response = await model.prompt(prompt)
+    await send(
+        {
+            "type": "http.response.start",
+            "status": 200,
+            "headers": [
+                [b"Content-Type", b"text/event-stream"],
+            ],
+        }
+    )
+    async for chunk in response:
+        await send(
+            {
+                "type": "http.response.body",
+                "body": b"data: "
+                + json.dumps({"text": chunk}).encode("utf-8")
+                + b"\r\n\r\n",
+                "more_body": True,
+            }
+        )
+    await send(
+        {
+            "type": "http.response.body",
+            "body": b"data: " + json.dumps({"done": True}).encode("utf-8"),
+            "more_body": False,
+        }
+    )
+
+
 @hookimpl
 def register_routes():
     return [
         (r"^/-/llm$", llm_index),
         # API proxies
         (r"^/-/llm/chat$", llm_chat),
+        (r"^/-/llm/stream$", llm_stream),
         # Capture conversation_id
         (r"^/-/llm/start$", llm_start),
         (r"^/-/llm/ws/(?P<conversation_id>[0-9a-z]+)$", llm_conversation_ws),
